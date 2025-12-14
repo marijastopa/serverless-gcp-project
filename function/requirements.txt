@@ -1,0 +1,10 @@
+# Google Cloud libraries
+google-cloud-firestore==2.14.0
+google-cloud-logging==3.9.0
+
+# HTTP requests with retry logic
+requests==2.31.0
+urllib3==2.1.0
+
+# Utilities
+python-dateutil==2.8.2
