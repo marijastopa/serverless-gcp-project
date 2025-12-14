@@ -1,56 +1,88 @@
 # Serverless GCP Data Pipeline
 
-A serverless data pipeline built on Google Cloud Platform that fetches data from external APIs, processes it, and stores it in Firestore. All infrastructure is provisioned using Terraform.
+A serverless data pipeline on Google Cloud Platform that fetches data from external APIs, processes it, and stores it in Firestore. Complete infrastructure provisioned as code using Terraform.
+
+## Overview
+
+This project implements an automated data pipeline that:
+- Fetches data from JSONPlaceholder REST API
+- Validates and transforms the data
+- Stores processed records in Firestore
+- Monitors execution and logs all operations
+- Handles errors with exponential backoff retry logic
 
 ## Architecture
+```
+External API (JSONPlaceholder)
+          ↓
+    Cloud Function (Python 3.11)
+          ↓
+    Data Processing & Validation
+          ↓
+    Firestore (NoSQL Database)
+          ↓
+    Cloud Monitoring & Logging
+```
 
-The pipeline consists of the following components:
+## Technology Stack
 
-- Cloud Function - Python runtime for data processing
-- Firestore - NoSQL database for data storage
-- Cloud Monitoring - Logging and alerting
-- Cloud Scheduler - Optional periodic execution
+- **Infrastructure**: Terraform 
+- **Runtime**: Python 3.11
+- **Cloud Platform**: Google Cloud Platform
+- **Database**: Firestore (Native mode)
+- **Compute**: Cloud Functions 
+- **Monitoring**: Cloud Monitoring & Cloud Logging
+- **Region**: europe-west1 (Belgium)
 
 ## Project Structure
 ```
 serverless-gcp-project/
-├── infrastructure/
-│   ├── main.tf
-│   ├── variables.tf
-│   ├── outputs.tf
-│   └── terraform.tfvars.example
-├── function/
-│   ├── main.py
-│   ├── config.py
-│   ├── utils.py
-│   └── requirements.txt
-└── scripts/
-    └── deploy.sh
+├── infrastructure/          # Terraform configuration
+│   ├── main.tf             # GCP resources definition
+│   ├── variables.tf        # Configuration variables
+│   ├── outputs.tf          # Deployment outputs
+│   └── terraform.tfvars    # Project-specific values (gitignored)
+├── function/               # Cloud Function source code
+│   ├── main.py            # Main function logic
+│   ├── config.py          # Configuration management
+│   ├── utils.py           # Helper functions
+│   └── requirements.txt   # Python dependencies
+├── scripts/
+│   └── deploy.sh          # Deployment automation script
+└── README.md
 ```
 
 ## Installation
 
-### 1. Authenticate with GCP
+### 1. Clone Repository
 ```bash
+git clone git@github.com:YOUR_USERNAME/serverless-gcp-project.git
+cd serverless-gcp-project
+```
+
+### 2. Install Dependencies
+```bash
+# Install Terraform
+brew install terraform
+
+# Install Google Cloud SDK
+brew install --cask google-cloud-sdk
+
+# Authenticate
 gcloud auth login
 gcloud auth application-default login
+```
+
+### 3. Configure GCP Project
+```bash
+# Set your project ID
 gcloud config set project YOUR_PROJECT_ID
-```
 
-### 2. Configure Terraform Variables
-```bash
+# Create terraform.tfvars
 cd infrastructure
-cp terraform.tfvars.example terraform.tfvars
-```
-
-Edit `terraform.tfvars` and set your project ID:
-```hcl
-project_id = "your-gcp-project-id"
-```
-
-### 3. Initialize Terraform
-```bash
-terraform init
+cat > terraform.tfvars << EOF
+project_id = "YOUR_PROJECT_ID"
+EOF
 ```
 
 ## Deployment
@@ -63,110 +95,139 @@ terraform init
 ### Manual Deployment
 ```bash
 cd infrastructure
+terraform init
 terraform plan
 terraform apply
 ```
 
+Deployment takes approximately 3-5 minutes and creates:
+- Firestore database
+- Cloud Function with service account
+- IAM roles and permissions
+- Cloud Storage bucket
+- Monitoring alert policy
+- Required API enablements
+
 ## Testing
 
-### Invoke the Function
+### Invoke Function
 ```bash
-curl -X POST FUNCTION_URL
+curl -X POST https://data-pipeline-function-4j5meez7dq-ew.a.run.app
 ```
 
-Get the function URL from Terraform outputs:
-```bash
-terraform output function_url
+Expected response:
+```json
+{
+  "status": "success",
+  "execution_time": 2.27,
+  "items_fetched": 100,
+  "items_processed": 10,
+  "items_stored": 10,
+  "success_rate": 10.0,
+  "errors_count": 0
+}
 ```
 
 ### View Logs
 ```bash
-gcloud functions logs read data-pipeline-function --region=europe-west1
+gcloud functions logs read data-pipeline-function --region=europe-west1 --limit=50
 ```
 
 ### Verify Data in Firestore
 
-Navigate to the GCP Console and check the `api_data` collection in Firestore.
+Navigate to GCP Console:
+```
+Firestore → Database (default) → api_data collection
+```
+
+You should see 10 documents (post_1 through post_10) with fields:
+- body, title (original content)
+- body_length, title_length, word_count (metadata)
+- user_id, post_id (identifiers)
+- fetched_at, processed_at (timestamps)
+- source, status (tracking fields)
 
 ## Configuration
 
-All configuration variables are defined in `infrastructure/variables.tf`. Default values can be overridden in `terraform.tfvars`.
+All configuration is managed through Terraform variables in `infrastructure/variables.tf`.
 
 ## Infrastructure Components
 
+### Firestore Database
+- **Type**: Native mode
+- **Location**: eur3 (Belgium and Netherlands)
+- **Collection**: api_data
+- **Access**: Service account with datastore.user role
+
 ### Cloud Function
+- **Runtime**: Python 3.11
+- **Memory**: 256 MB
+- **Timeout**: 60 seconds
+- **Concurrency**: Max 10 instances
+- **Trigger**: HTTP (unauthenticated for testing)
 
-- Runtime: Python 3.11
-- Trigger: HTTP
-- Memory: 256 MB
-- Timeout: 60 seconds
-- Service Account: Dedicated with minimal required permissions
-
-### Firestore
-
-- Type: Native mode
-- Location: europe-west
-- Collection: api_data
-
-### IAM Roles
-
-The service account has the following roles:
-
-- `roles/datastore.user` - Read/write to Firestore
-- `roles/logging.logWriter` - Write logs
-- `roles/monitoring.metricWriter` - Write metrics
+### Service Account
+Dedicated service account with minimal required permissions:
+- roles/datastore.user
+- roles/cloudfunctions.invoker
+- roles/logging.logWriter
+- roles/monitoring.metricWriter
 
 ### Monitoring
-
-- Error rate alerts
-- Execution logs
-- Custom metrics
+- Error rate alert policy (threshold: 5 errors/minute)
+- Automatic logging to Cloud Logging
+- Execution metrics tracked in Cloud Monitoring
 
 ## Data Processing Pipeline
 
-1. Fetch data from JSONPlaceholder API
-2. Validate required fields
-3. Transform and enrich data
-4. Store in Firestore with batching
-5. Log execution summary
+1. **Fetch**: HTTP GET request to external API with retry logic
+2. **Validate**: Check required fields and data types
+3. **Transform**: Add metadata (word count, lengths, timestamps)
+4. **Store**: Batch write to Firestore (batches of 5 documents)
+5. **Log**: Record execution summary and statistics
 
 ## Error Handling
 
-- Exponential backoff retry logic for API calls
-- Rate limit handling
-- Data validation before processing
-- Batch write failures logged and retried
-- Comprehensive error logging
+- **Retry Logic**: Exponential backoff (3 attempts, 2-second initial delay)
+- **Rate Limiting**: HTTP 429 detection and handling
+- **Validation**: Pre-storage data validation
+- **Health Checks**: Firestore connectivity verification
+- **Comprehensive Logging**: All errors captured with context
+
+## Monitoring and Observability
+
+### Logs
+Access function logs via:
+- GCP Console: Cloud Functions → Logs tab
+- CLI: `gcloud functions logs read data-pipeline-function`
+
+### Metrics
+Monitor via GCP Console:
+- Cloud Functions → Metrics tab
+- Cloud Monitoring → Dashboards
+
+### Alerts
+Alert policy triggers when error rate exceeds 5 errors per minute.
+
+## Security
+
+- Service account follows principle of least privilege
+- IAM roles scoped to minimum required permissions
+- terraform.tfvars excluded from version control
+- No hardcoded credentials in source code
+- Environment variables for configuration
 
 ## Cleanup
 
-To destroy all infrastructure:
+To remove all infrastructure:
 ```bash
 cd infrastructure
 terraform destroy
 ```
 
-## Security Considerations
-
-- Service account follows principle of least privilege
-- API credentials managed via environment variables
-- terraform.tfvars excluded from version control
-- Firestore security rules should be configured separately
-
-## Monitoring and Logging
-
-Access logs and metrics through:
-
-- GCP Console - Cloud Functions section
-- Cloud Logging
-- Cloud Monitoring dashboards
-
-## Development
-
-To modify the function:
-
-1. Update code in `function/` directory
-2. Test locally if possible
-3. Deploy using Terraform
-
-Terraform will automatically package and upload new code.
+This will delete:
+- Cloud Function
+- Firestore database (including all data)
+- Service account
+- Storage bucket
+- Monitoring policies
