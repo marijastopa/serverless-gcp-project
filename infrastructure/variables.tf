@@ -26,7 +26,7 @@ variable "firestore_database_name" {
 variable "firestore_location" {
   description = "Firestore database location"
   type        = string
-  default     = "europe-west"
+  default     = "eur3"
 }
 
 variable "firestore_collection_name" {

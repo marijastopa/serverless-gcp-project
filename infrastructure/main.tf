@@ -231,20 +231,6 @@ resource "google_cloud_scheduler_job" "function_trigger" {
   depends_on = [google_cloudfunctions2_function.data_pipeline]
 }
 
-# Log Sink for Function Logs
-
-resource "google_logging_project_sink" "function_logs" {
-  name        = "${var.function_name}-logs-sink"
-  destination = "logging.googleapis.com/projects/${var.project_id}/logs/${var.function_name}"
-  
-  filter = <<-EOT
-    resource.type = "cloud_function"
-    resource.labels.function_name = "${var.function_name}"
-  EOT
-  
-  unique_writer_identity = true
-}
-
 # Monitoring Alert Policy (if enabled)
 
 resource "google_monitoring_alert_policy" "function_errors" {
