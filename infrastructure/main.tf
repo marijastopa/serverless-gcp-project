@@ -193,6 +193,7 @@ resource "google_cloudfunctions2_function" "data_pipeline" {
   depends_on = [
     google_project_service.cloudfunctions,
     google_project_service.cloudbuild,
+    google_project_service.cloudrun,
     google_firestore_database.database
   ]
 }
@@ -260,4 +261,11 @@ resource "google_monitoring_alert_policy" "function_errors" {
   }
   
   depends_on = [google_cloudfunctions2_function.data_pipeline]
+}
+
+resource "google_project_service" "cloudrun" {
+  project = var.project_id
+  service = "run.googleapis.com"
+  
+  disable_on_destroy = false
 }
